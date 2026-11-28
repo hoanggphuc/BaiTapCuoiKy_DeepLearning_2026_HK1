@@ -43,3 +43,54 @@ def split_by_fold(df, val_fold, test_fold):
         raise ValueError("Một trong các tập dữ liệu train, val hoặc test trống.")
 
     return train_df, val_df, test_df
+
+
+class ESC50Dataset(Dataset):
+    def __init__(
+        self,
+        dataframe,
+        audio_dir,
+        audio_config,
+        feature_extractor
+    ):
+        self.df = dataframe.reset_index(drop=True)
+        self.audio_dir = Path(audio_dir)
+        self.audio_config = audio_config
+        self.feature_extractor = feature_extractor
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        # 1. Lấy metadata
+        row = self.df.iloc[idx]
+
+        filename = row["filename"]
+        label = int(row["target"])
+
+        # 2. Đường dẫn file WAV
+        audio_path = self.audio_dir / filename
+
+        # 3. Tiền xử lý waveform
+        waveform, sr = process_audio(
+            audio_path,
+            self.audio_config
+        )
+
+        # 4. Kiểm tra sample rate
+        if sr != self.feature_extractor.sample_rate:
+            raise ValueError(
+                "Audio and feature sample rates differ"
+            )
+
+        # 5. Trích xuất Log-Mel
+        features = self.feature_extractor(waveform)
+
+        # 6. Chuyển nhãn thành Tensor
+        label = torch.tensor(
+            label,
+            dtype=torch.long
+        )
+
+        return features, label
+
